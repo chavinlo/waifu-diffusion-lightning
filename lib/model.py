@@ -1,5 +1,6 @@
 import pytorch_lightning as pl
 import torch
+import time
 
 from transformers import CLIPTextModel, CLIPFeatureExtractor
 from diffusers import AutoencoderKL, UNet2DConditionModel, DDPMScheduler, StableDiffusionPipeline, PNDMScheduler
@@ -36,10 +37,10 @@ class StableDiffusionModel(pl.LightningModule):
             clip_sample=False
         )
 
-        self.unet.to(tp(config.unet.precision))
+        self.unet.to(tp(config.trainer.unet.precision))
 
-        self.vae.to(tp(config.vae.precision))
-        self.text_encoder.to(tp(config.text_encoder.precision))
+        self.vae.to(tp(config.trainer.vae.precision))
+        self.text_encoder.to(tp(config.trainer.text_encoder.precision))
 
         #Freeze vae and text_encoder
         self.vae.requires_grad_(False)
@@ -52,6 +53,7 @@ class StableDiffusionModel(pl.LightningModule):
             self.unet.set_use_memory_efficient_attention_xformers(True)
 
     def training_step(self, batch, batch_idx):
+        b_start = time.perf_counter()
         # Convert images to latent space
         #b_start = time.perf_counter()
         latents = self.vae.encode(batch['pixel_values'].to(dtype=tp(self.config.trainer.latents.precision))).latent_dist.sample()
@@ -70,7 +72,7 @@ class StableDiffusionModel(pl.LightningModule):
 
         # Add noise to the latents according to the noise magnitude at each timestep
         # (this is the forward diffusion process)
-        noisy_latents = self.noise_scheduler.add_noise(latents, noise, timesteps).to(tp(self.config.n_latents.precision))
+        noisy_latents = self.noise_scheduler.add_noise(latents, noise, timesteps).to(tp(self.config.trainer.n_latents.precision))
 
         #Following diffusers trainer:
         # Get the text embedding for conditioning
@@ -78,20 +80,29 @@ class StableDiffusionModel(pl.LightningModule):
         #  TODO: Add entry to config file
         enable_clip_penultimate = False
         if enable_clip_penultimate:
-            encoder_hidden_states = self.text_encoder.text_model.final_layer_norm(encoder_hidden_states['hidden_states'][-self.config.trainer.clip_skip])
+            encoder_hidden_states = self.text_encoder.text_model.final_layer_norm(encoder_hidden_states['hidden_states'][-2])
         else:
             encoder_hidden_states = encoder_hidden_states.last_hidden_state
 
         # Predict noise residual
         # TODO: haru's uses torch.autocast, naifu doesn't.
-        noise_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states.to(tp(self.config.n_pred.precision))).sample
+        noise_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states.to(tp(self.config.trainer.n_pred.precision))).sample
 
         # Compute loss
         # TODO: haru's uses torch.nn.function, naifu does too but imports it as "F"
         loss = torch.nn.functional.mse_loss(noise_pred.float(), noise.float(), reduction="mean")
+
+        #perf
+        b_end = time.perf_counter()
+        seconds_per_step = b_end - b_start
+        steps_per_second = 1 / seconds_per_step
+        images_per_second = self.config.trainer.batch_size * steps_per_second
         
         #naifu trainer only
         self.log("train_loss", loss)
+        self.log("train_steps_per_second", steps_per_second)
+        self.log("images_per_second", images_per_second)
+        self.log("seconds_per_step", seconds_per_step)
         return loss
 
     def configure_optimizers(self):
@@ -102,7 +113,7 @@ class StableDiffusionModel(pl.LightningModule):
             oc.lr = self.lr
         
         #almost the same as L589, L579-587 sets the optimizers,
-        if self.config.trainer.use_8bit_adam:
+        if self.config.trainer.optimizer.use_8bit_adam:
             try:
                 import bitsandbytes as bnb
                 optimizer_cls = bnb.optim.AdamW8bit
@@ -126,7 +137,7 @@ class StableDiffusionModel(pl.LightningModule):
 
         #Also known as lr_scheduler
         scheduler = get_scheduler(
-            lsc,
+            lsc.type,
             optimizer=optimizer,
             num_warmup_steps=int(float(lsc.warmup) * int(self.train_dataloader_len) * int(self.config.trainer.epochs)), #This part is going to be hardcoded until we get a way to get dataset length
             num_training_steps=int(int(self.config.trainer.epochs) * int(self.train_dataloader_len))

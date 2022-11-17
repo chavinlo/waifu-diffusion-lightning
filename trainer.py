@@ -1,6 +1,7 @@
 import pytorch_lightning as pl
 import torch
 import argparse
+import time
 
 from transformers import CLIPTokenizer
 from data.engines import ImageStore, AspectBucket, AspectBucketSampler, AspectDataset
@@ -14,11 +15,15 @@ parser.add_argument('-c', '--config', type=str, required=True, help="Path to the
 args = parser.parse_args()
 
 pathToConf = args.config
+print(pathToConf)
 config = OmegaConf.load(pathToConf)
+
+def gt():
+    return(time.time_ns())
 
 def main():
     torch.manual_seed(config.trainer.seed)
-    pathToModelDiffuser = config.checkpoint.input
+    pathToModelDiffuser = config.checkpoint.input.diffusers_path
     resolution = config.dataset.resolution
 
     tokenizer = CLIPTokenizer.from_pretrained(pathToModelDiffuser, subfolder="tokenizer")
@@ -54,11 +59,13 @@ def main():
 
     if config.logger.enable:
         logger = (
-            wandb.WandbLogger(project=config.logger.wandb_id)
+            wandb.WandbLogger(project=config.logger.wandb_id, name=str(gt()))
         )
+    else:
+        logger = None
 
     trainer = pl.Trainer(
-        logger = None,
+        logger = logger,
         strategy = None,
         **config.lightning
     )
