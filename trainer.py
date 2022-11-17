@@ -7,6 +7,8 @@ from data.engines import ImageStore, AspectBucket, AspectBucketSampler, AspectDa
 from lib.model import load_model
 from omegaconf import OmegaConf
 
+from pytorch_lightning.loggers import wandb
+
 parser = argparse.ArgumentParser(description="Waifu Diffusion Finetuner ported to Lightning")
 parser.add_argument('-c', '--config', type=str, required=True, help="Path to the configuration file")
 args = parser.parse_args()
@@ -49,6 +51,11 @@ def main():
         num_workers=0,
         collate_fn=dataset.collate_fn
     )
+
+    if config.logger.enable:
+        logger = (
+            wandb.WandbLogger(project=config.logger.wandb_id)
+        )
 
     trainer = pl.Trainer(
         logger = None,

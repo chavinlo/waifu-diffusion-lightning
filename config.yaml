@@ -57,3 +57,7 @@ lightning:
   auto_scale_batch_size: false
   auto_lr_find: false
   move_metrics_to_cpu:
+
+logger:
+  enable: false
+  wandb_id: YOUR ID GOES HERE
