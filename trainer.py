@@ -26,7 +26,7 @@ def main():
     pathToModelDiffuser = config.checkpoint.input.diffusers_path
     resolution = config.dataset.resolution
 
-    tokenizer = CLIPTokenizer.from_pretrained(pathToModelDiffuser, subfolder="tokenizer")
+    tokenizer = CLIPTokenizer.from_pretrained(pathToModelDiffuser, subfolder="tokenizer", use_auth_token=use_auth)
 
     #do as haru's rather than naifus
     #load dataset
