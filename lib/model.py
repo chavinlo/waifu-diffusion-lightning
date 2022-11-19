@@ -21,12 +21,13 @@ class StableDiffusionModel(pl.LightningModule):
         self.train_dataloader_len = train_dataloader_len
         self.input_model_path = config.checkpoint.input.diffusers_path
         self.output_model_path = config.checkpoint.output.output_path
+        use_auth = config.use_auth_token
 
         self.tokenizer = tokenizer
 
-        self.text_encoder = CLIPTextModel.from_pretrained(self.input_model_path, subfolder='text_encoder') #L721
-        self.vae = AutoencoderKL.from_pretrained(self.input_model_path, subfolder='vae')
-        self.unet = UNet2DConditionModel.from_pretrained(self.input_model_path, subfolder='unet')
+        self.text_encoder = CLIPTextModel.from_pretrained(self.input_model_path, subfolder='text_encoder', use_auth_token=use_auth) #L721
+        self.vae = AutoencoderKL.from_pretrained(self.input_model_path, subfolder='vae', use_auth_token=use_auth)
+        self.unet = UNet2DConditionModel.from_pretrained(self.input_model_path, subfolder='unet', use_auth_token=use_auth)
 
         #Unlike naifu's trainer, diffusers trainer starts a new DDPMScheduler rather than loading it from the model.
         self.noise_scheduler = DDPMScheduler(
