@@ -6,7 +6,7 @@ checkpoint:
   output:
     output_path: "modeloutput"
   input:
-    diffusers_path: "wdiffuser"
+    diffusers_path: "runwayml/stable-diffusion-v1-5"
 
 trainer:
   seed: 24
