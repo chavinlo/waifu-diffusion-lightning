@@ -1,5 +1,6 @@
 name: testrun
 strategy: none
+use_auth: true
 
 checkpoint:
   output:
