@@ -25,6 +25,7 @@ def main():
     torch.manual_seed(config.trainer.seed)
     pathToModelDiffuser = config.checkpoint.input.diffusers_path
     resolution = config.dataset.resolution
+    use_auth=config.use_auth_token
 
     tokenizer = CLIPTokenizer.from_pretrained(pathToModelDiffuser, subfolder="tokenizer", use_auth_token=use_auth)
 
